@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Titans of Telecom: An Interactive Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Dark Mode with Brand Accents -->
+    <!-- Application Structure Plan: A single-page dashboard with a sticky top navigation for non-linear exploration. The structure prioritizes direct comparison, with sections dedicated to key themes like Market Position, Network Quality, and Service Plans. This dashboard approach allows users to quickly synthesize information and compare operators side-by-side, which is more effective for understanding the competitive landscape than a linear report format. Key interactions include toggling between plan types (Prepaid/Postpaid/Broadband) to dynamically display comparative data tables. A new Gemini-powered "Plan Finder" adds a layer of AI-driven personalization. -->
+    <!-- Visualization & Content Choices: Report data is transformed into interactive visualizations to enhance understanding. Goal: Compare -> Viz: Grouped Bar Charts (Chart.js) for metrics like speed and subscribers. Goal: Inform -> Viz: Key metric cards and Doughnut charts (Chart.js) for proportional data like 5G availability. Goal: Organize -> Viz: Interactive tables with toggle buttons for plan comparisons. Goal: Personalize & Recommend -> Interaction: A natural language input that sends user needs and plan data to the Gemini API for a custom recommendation. This approach makes complex data digestible and directly comparable, supporting the overall dashboard structure. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            color: #d1d5db; /* text-gray-300 */
+        }
+        .brand-airtel { color: #ef4444; } /* red-500 */
+        .brand-jio { color: #3b82f6; } /* blue-500 */
+        .brand-vi { color: #f97316; } /* orange-500 */
+        .bg-brand-airtel { background-color: #ef4444; }
+        .bg-brand-jio { background-color: #3b82f6; }
+        .bg-brand-vi { background-color: #f97316; }
+        .border-brand-airtel { border-color: #ef4444; }
+        .border-brand-jio { border-color: #3b82f6; }
+        .border-brand-vi { border-color: #f97316; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 320px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .nav-link {
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover {
+            color: #60a5fa; /* blue-400 */
+        }
+        .plan-toggle-btn {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .plan-toggle-btn.active {
+            background-color: #3b82f6; /* blue-500 */
+            color: #ffffff;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        #sparkle-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .sparkle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: sparkle-animation linear infinite;
+        }
+
+        @keyframes sparkle-animation {
+            0% { transform: scale(0.5) translateY(0); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: scale(1.2) translateY(-100px); opacity: 0; }
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: #3b82f6;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="sparkle-container"></div>
+
+    <header class="bg-gray-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg shadow-black/10">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <h1 class="text-xl md:text-2xl font-bold text-gray-100">Titans of Telecom</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#overview" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Overview</a>
+                        <a href="#market-position" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Market</a>
+                        <a href="#network-quality" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Network</a>
+                        <a href="#plan-finder" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">✨ Plan Finder</a>
+                        <a href="#service-plans" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">All Plans</a>
+                        <a href="#ecosystem" class="nav-link text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Ecosystem</a>
+                    </div>
+                </div>
+                 <div class="md:hidden">
+                    <select id="mobile-nav" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        <option value="#overview">Overview</option>
+                        <option value="#market-position">Market</option>
+                        <option value="#network-quality">Network</option>
+                        <option value="#plan-finder">✨ Plan Finder</option>
+                        <option value="#service-plans">All Plans</option>
+                        <option value="#ecosystem">Ecosystem</option>
+                    </select>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <section id="intro" class="text-center mb-16">
+            <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">India's Telecom Battlefield</h2>
+            <p class="max-w-3xl mx-auto text-lg md:text-xl text-gray-400">
+                An interactive analysis of the strategic duel between <span class="brand-airtel font-semibold">Airtel</span>, <span class="brand-jio font-semibold">Jio</span>, and <span class="brand-vi font-semibold">Vi</span>. Explore the data behind the duopoly that defines India's digital future.
+            </p>
+        </section>
+
+        <section id="overview" class="mb-20">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">At a Glance: The Three Contenders</h3>
+            <p class="text-center text-gray-400 mb-10">This section provides a high-level corporate and financial snapshot of each operator. It's designed to give you a quick understanding of their scale, origins, and current market valuation, setting the stage for deeper comparisons.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-gray-800 rounded-xl shadow-lg p-6 border-t-4 border-brand-airtel">
+                    <h4 class="text-2xl font-bold brand-airtel mb-2">Bharti Airtel</h4>
+                    <p class="text-sm text-gray-400 mb-4">The resilient incumbent, focused on premiumization and quality of service.</p>
+                    <ul class="space-y-3 text-gray-300">
+                        <li><span class="font-semibold text-gray-100">Founder:</span> Sunil Bharti Mittal</li>
+                        <li><span class="font-semibold text-gray-100">Market Cap:</span> ~$141.17 Billion</li>
+                        <li><span class="font-semibold text-gray-100">FY25 Revenue:</span> ~$21 Billion</li>
+                        <li><span class="font-semibold text-gray-100">Strategy:</span> High-ARPU customers, diversified digital services (Payments Bank, DTH).</li>
+                    </ul>
+                </div>
+                <div class="bg-gray-800 rounded-xl shadow-lg p-6 border-t-4 border-brand-jio">
+                    <h4 class="text-2xl font-bold brand-jio mb-2">Reliance Jio</h4>
+                    <p class="text-sm text-gray-400 mb-4">The market disruptor, leveraging scale and a vast digital ecosystem.</p>
+                    <ul class="space-y-3 text-gray-300">
+                        <li><span class="font-semibold text-gray-100">Founder:</span> Mukesh Ambani</li>
+                        <li><span class="font-semibold text-gray-100">Market Cap:</span> ~$23.7 Billion (Jio Financial)</li>
+                        <li><span class="font-semibold text-gray-100">FY24 Revenue:</span> ~$12 Billion</li>
+                        <li><span class="font-semibold text-gray-100">Strategy:</span> Mass market acquisition, "platform-first" with Jio Platforms, rapid 5G rollout.</li>
+                    </ul>
+                </div>
+                <div class="bg-gray-800 rounded-xl shadow-lg p-6 border-t-4 border-brand-vi">
+                    <h4 class="text-2xl font-bold brand-vi mb-2">Vodafone Idea (Vi)</h4>
+                    <p class="text-sm text-gray-400 mb-4">The merged entity fighting for survival amidst financial challenges.</p>
+                    <ul class="space-y-3 text-gray-300">
+                        <li><span class="font-semibold text-gray-100">Founder:</span> Merger of Vodafone & Idea</li>
+                        <li><span class="font-semibold text-gray-100">Market Cap:</span> ~$9.05 Billion</li>
+                        <li><span class="font-semibold text-gray-100">FY24 Revenue:</span> ~$5.1 Billion</li>
+                        <li><span class="font-semibold text-gray-100">Strategy:</span> Customer retention via unique prepaid perks, focus on core mobility.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="market-position" class="mb-20">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">Market Position & Subscriber Dynamics</h3>
+            <p class="text-center text-gray-400 mb-10">Who is winning the race for customers? This section visualizes the subscriber landscape, including the crucial battle for 5G users. The charts illustrate market share and growth momentum, revealing the clear duopolistic trend.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h4 class="text-lg font-semibold text-center text-white mb-4">Total Broadband Subscribers (in Millions)</h4>
+                    <div class="chart-container">
+                        <canvas id="subscriberChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h4 class="text-lg font-semibold text-center text-white mb-4">5G Subscriber Base (in Millions, June 2025)</h4>
+                    <div class="chart-container">
+                        <canvas id="fiveGSubscriberChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="network-quality" class="mb-20">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">Network Quality & Performance</h3>
+            <p class="text-center text-gray-400 mb-10">Beyond subscribers, network experience is key. Here, we compare the operators on speed, reliability, and 5G availability based on data from independent testing authorities like Ookla. This reveals the technical strengths and weaknesses of each network.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h4 class="text-lg font-semibold text-center text-white mb-4">Median 5G Download Speed (Mbps)</h4>
+                    <div class="chart-container">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h4 class="text-lg font-semibold text-center text-white mb-4">5G Network Availability</h4>
+                    <div class="chart-container">
+                        <canvas id="availabilityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="plan-finder" class="mb-20 bg-gray-800/50 rounded-xl p-8">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">✨ Personalized Plan Finder</h3>
+            <p class="text-center text-gray-400 mb-6 max-w-2xl mx-auto">Confused by all the options? Describe what you need in a plan (e.g., "lots of data for streaming movies," "a cheap plan with good calls," or "fast home internet with Netflix"). Our AI will recommend the best plan for you.</p>
+            <div class="max-w-xl mx-auto">
+                <textarea id="plan-prompt" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none" rows="3" placeholder="e.g., I need a prepaid plan with at least 2GB of data per day and good OTT benefits..."></textarea>
+                <button id="find-plan-btn" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-300 flex items-center justify-center">
+                    Find My Perfect Plan
+                </button>
+                <div id="plan-finder-loading" class="text-center py-6 hidden">
+                    <div class="loader mx-auto"></div>
+                    <p class="mt-4 text-gray-400">Analyzing plans...</p>
+                </div>
+                <div id="gemini-response" class="mt-6 p-6 bg-gray-800 rounded-lg border border-gray-700 hidden"></div>
+            </div>
+        </section>
+
+        <section id="service-plans" class="mb-20">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">Service Plan Comparison</h3>
+            <p class="text-center text-gray-400 mb-10">This is where the battle for the consumer's wallet is fought. Use the toggles to compare popular plans across different service types. The tables highlight data allowances, pricing, and the unique benefits each operator uses to attract customers.</p>
+            <div class="flex justify-center mb-8">
+                <div class="flex space-x-1 bg-gray-700 p-1 rounded-lg">
+                    <button id="btn-prepaid" class="plan-toggle-btn active px-4 py-2 text-sm font-semibold rounded-md">Prepaid</button>
+                    <button id="btn-postpaid" class="plan-toggle-btn px-4 py-2 text-sm font-semibold rounded-md text-gray-300">Postpaid</button>
+                    <button id="btn-broadband" class="plan-toggle-btn px-4 py-2 text-sm font-semibold rounded-md text-gray-300">Broadband</button>
+                </div>
+            </div>
+
+            <div id="plan-tables" class="fade-in">
+                <div id="prepaid-table">
+                    <h4 class="text-xl font-semibold text-center text-white mb-4">Popular Prepaid Plans (84-Day Validity)</h4>
+                    <div class="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
+                        <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs text-gray-300 uppercase bg-gray-700/50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Feature</th>
+                                    <th scope="col" class="px-6 py-3 brand-airtel">Airtel (₹859)</th>
+                                    <th scope="col" class="px-6 py-3 brand-jio">Jio (₹859)</th>
+                                    <th scope="col" class="px-6 py-3 brand-vi">Vi (₹859)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Daily Data</th><td class="px-6 py-4">1.5 GB/Day</td><td class="px-6 py-4">2 GB/Day</td><td class="px-6 py-4">1.5 GB/Day</td></tr>
+                                <tr class="bg-gray-800/50 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Unlimited 5G</th><td class="px-6 py-4">Yes</td><td class="px-6 py-4">Yes</td><td class="px-6 py-4">N/A</td></tr>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Unique Features</th><td class="px-6 py-4">Airtel Thanks Benefits</td><td class="px-6 py-4">JioCinema, JioTV</td><td class="px-6 py-4">Binge All Night, Weekend Rollover</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="postpaid-table" class="hidden">
+                    <h4 class="text-xl font-semibold text-center text-white mb-4">Entry-Level Postpaid Plans</h4>
+                    <div class="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
+                         <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs text-gray-300 uppercase bg-gray-700/50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Feature</th>
+                                    <th scope="col" class="px-6 py-3 brand-airtel">Airtel (₹449)</th>
+                                    <th scope="col" class="px-6 py-3 brand-jio">Jio (₹349)</th>
+                                    <th scope="col" class="px-6 py-3 brand-vi">Vi (₹451)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Monthly Data</th><td class="px-6 py-4">50 GB</td><td class="px-6 py-4">30 GB</td><td class="px-6 py-4">50 GB</td></tr>
+                                <tr class="bg-gray-800/50 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Data Rollover</th><td class="px-6 py-4">Up to 200 GB</td><td class="px-6 py-4">No</td><td class="px-6 py-4">Up to 200 GB</td></tr>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Bundled OTTs</th><td class="px-6 py-4">Xstream Play</td><td class="px-6 py-4">JioCinema, JioTV</td><td class="px-6 py-4">Choice of 1 (Hotstar, SonyLIV etc)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="broadband-table" class="hidden">
+                    <h4 class="text-xl font-semibold text-center text-white mb-4">Popular Broadband Plans (100 Mbps)</h4>
+                     <div class="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
+                         <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs text-gray-300 uppercase bg-gray-700/50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Feature</th>
+                                    <th scope="col" class="px-6 py-3 brand-airtel">Airtel Xstream Fiber (₹799)</th>
+                                    <th scope="col" class="px-6 py-3 brand-jio">JioFiber (₹699)</th>
+                                    <th scope="col" class="px-6 py-3 brand-vi">Vi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Speed</th><td class="px-6 py-4">100 Mbps</td><td class="px-6 py-4">100 Mbps</td><td rowspan="3" class="px-6 py-4 text-center align-middle">No comparable consumer service</td></tr>
+                                <tr class="bg-gray-800/50 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Data</th><td class="px-6 py-4">Unlimited</td><td class="px-6 py-4">Unlimited</td></tr>
+                                <tr class="bg-gray-800 border-b border-gray-700"><th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">Bundled OTTs</th><td class="px-6 py-4">Xstream Play, Perplexity Pro</td><td class="px-6 py-4">None on base plan</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="ecosystem" class="mb-16">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-2">Beyond Connectivity: The Digital Ecosystem</h3>
+            <p class="text-center text-gray-400 mb-10">Modern telcos are building "moats" to keep customers loyal. This section highlights the ancillary services—from streaming and finance to AI tools—that each operator offers to create a sticky ecosystem and increase customer lifetime value.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h4 class="text-xl font-bold brand-airtel mb-3">Airtel's Ecosystem</h4>
+                    <ul class="space-y-2 list-disc list-inside text-gray-300">
+                        <li><span class="font-semibold text-white">Airtel Payments Bank:</span> Full-fledged digital banking.</li>
+                        <li><span class="font-semibold text-white">Airtel Xstream:</span> DTH and content aggregation.</li>
+                        <li><span class="font-semibold text-white">Wynk Music:</span> Music streaming service.</li>
+                        <li><span class="font-semibold text-white">Perplexity Pro:</span> Exclusive AI search engine partnership.</li>
+                        <li><span class="font-semibold text-white">Airtel Thanks:</span> Loyalty and rewards program.</li>
+                    </ul>
+                </div>
+                 <div class="bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h4 class="text-xl font-bold brand-jio mb-3">Jio's Ecosystem</h4>
+                    <ul class="space-y-2 list-disc list-inside text-gray-300">
+                        <li><span class="font-semibold text-white">JioCinema:</span> Video streaming powerhouse.</li>
+                        <li><span class="font-semibold text-white">JioTV:</span> Live TV streaming.</li>
+                        <li><span class="font-semibold text-white">JioCloud:</span> Free cloud storage solution.</li>
+                        <li><span class="font-semibold text-white">Jio Payments Bank:</span> Digital payment services.</li>
+                        <li><span class="font-semibold text-white">MyJio Super-App:</span> Central hub for all services.</li>
+                    </ul>
+                </div>
+                 <div class="bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h4 class="text-xl font-bold brand-vi mb-3">Vi's Ecosystem</h4>
+                    <ul class="space-y-2 list-disc list-inside text-gray-300">
+                        <li><span class="font-semibold text-white">Vi Movies & TV:</span> Content aggregation platform.</li>
+                        <li><span class="font-semibold text-white">Vi Games:</span> E-sports and casual gaming.</li>
+                        <li><span class="font-semibold text-white">Power of Choice:</span> Flexible OTT subscription selection.</li>
+                        <li><span class="font-semibold text-white">Core Focus:</span> Innovative features on mobile plans (e.g., Data Rollover).</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+        
+        <section id="regulatory" class="bg-gray-800/50 rounded-xl p-8">
+            <h3 class="text-2xl md:text-3xl font-bold text-center text-white mb-4">The Unseen Hand: Regulation & Censorship</h3>
+             <p class="max-w-4xl mx-auto text-center text-gray-400">
+                All operators in India must navigate a complex and opaque regulatory environment. Under Section 69A of the IT Act, the government can issue confidential orders to block online content. This forces providers to implement filtering, often using non-transparent methods like SNI inspection. While operators also launch their own security features, like Airtel's anti-fraud filter, these powerful tools raise concerns among digital rights groups about potential misuse for broader censorship, placing telcos in a difficult position between legal compliance and user freedom.
+            </p>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-900 text-white mt-16 border-t border-gray-700">
+        <div class="container mx-auto px-8 py-8 text-center">
+            <p class="text-sm text-gray-300">Created by Girish Lade</p>
+            <div class="flex justify-center items-center space-x-6 mt-4">
+                <a href="https://www.instagram.com/girish_lade_/" target="_blank" class="text-gray-400 hover:text-brand-vi transition-colors duration-300">Instagram</a>
+                <a href="https://www.linkedin.com/in/girish-lade-075bba201/" target="_blank" class="text-gray-400 hover:text-brand-jio transition-colors duration-300">LinkedIn</a>
+                <a href="https://github.com/girishlade111" target="_blank" class="text-gray-400 hover:text-white transition-colors duration-300">GitHub</a>
+                <a href="https://codepen.io/Girish-Lade-the-looper" target="_blank" class="text-gray-400 hover:text-gray-300 transition-colors duration-300">Codepen</a>
+                <a href="mailto:girishlade111@gmail.com" class="text-gray-400 hover:text-brand-airtel transition-colors duration-300">Email</a>
+            </div>
+            <p class="text-xs text-gray-500 mt-6">This interactive application is based on the "Titans of Telecom" strategic analysis report.</p>
+            <p class="text-xs text-gray-500 mt-1">All data is sourced from the report, which references TRAI, Ookla, and company financial statements for mid-2025 or the latest available fiscal year.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const brandColors = {
+                airtel: 'rgba(239, 68, 68, 0.8)',
+                jio: 'rgba(59, 130, 246, 0.8)',
+                vi: 'rgba(249, 115, 22, 0.8)',
+            };
+            const brandBorderColors = {
+                airtel: 'rgba(239, 68, 68, 1)',
+                jio: 'rgba(59, 130, 246, 1)',
+                vi: 'rgba(249, 115, 22, 1)',
+            };
+            
+            const chartTextColor = '#d1d5db';
+            const chartGridColor = 'rgba(255, 255, 255, 0.1)';
+
+            const chartDefaultOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: chartTextColor
+                        }
+                    },
+                    tooltip: {
+                        titleColor: '#ffffff',
+                        bodyColor: '#d1d5db',
+                        backgroundColor: '#1f2937'
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: chartTextColor },
+                        grid: { color: chartGridColor },
+                        title: { color: chartTextColor, display: true }
+                    },
+                    y: {
+                        ticks: { color: chartTextColor },
+                        grid: { color: chartGridColor },
+                        title: { color: chartTextColor, display: true }
+                    }
+                }
+            };
+            
+            function mergeOptions(base, updates) {
+                return {...base, ...updates, plugins: {...base.plugins, ...updates.plugins}, scales: {...base.scales, ...updates.scales}};
+            }
+
+            const subscriberCtx = document.getElementById('subscriberChart').getContext('2d');
+            new Chart(subscriberCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jio', 'Airtel', 'Vi'],
+                    datasets: [{
+                        label: 'Total Broadband Subscribers (Millions)',
+                        data: [494.47, 302.15, 126.68],
+                        backgroundColor: [brandColors.jio, brandColors.airtel, brandColors.vi],
+                        borderColor: [brandBorderColors.jio, brandBorderColors.airtel, brandBorderColors.vi],
+                        borderWidth: 1
+                    }]
+                },
+                options: mergeOptions(chartDefaultOptions, {
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { title: { text: 'Subscribers (in Millions)' } } }
+                })
+            });
+
+            const fiveGCtx = document.getElementById('fiveGSubscriberChart').getContext('2d');
+            new Chart(fiveGCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jio', 'Airtel', 'Vi'],
+                    datasets: [{
+                        label: '5G Subscribers (Millions)',
+                        data: [213, 0, 0], 
+                        backgroundColor: [brandColors.jio, brandColors.airtel, brandColors.vi],
+                        borderColor: [brandBorderColors.jio, brandBorderColors.airtel, brandBorderColors.vi],
+                        borderWidth: 1
+                    }]
+                },
+                 options: mergeOptions(chartDefaultOptions, {
+                     plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.raw === 0) return '5G Not Widely Deployed';
+                                    return `5G Subscribers: ${context.raw}M`;
+                                }
+                            }
+                        },
+                         title: { display: true, text: 'Note: Airtel 5G subscriber count not specified. Vi has not widely deployed.', color: chartTextColor }
+                    },
+                    scales: { y: { title: { text: 'Subscribers (in Millions)' } } }
+                })
+            });
+
+            const speedCtx = document.getElementById('speedChart').getContext('2d');
+            new Chart(speedCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jio', 'Airtel'],
+                    datasets: [{
+                        label: 'Median 5G Download Speed (Mbps)',
+                        data: [258.54, 205.10],
+                        backgroundColor: [brandColors.jio, brandColors.airtel],
+                        borderColor: [brandBorderColors.jio, brandBorderColors.airtel],
+                        borderWidth: 1
+                    }]
+                },
+                options: mergeOptions(chartDefaultOptions, {
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { label: (c) => `Speed: ${c.raw} Mbps` }
+                        },
+                        title: { display: true, text: 'Vi 5G data not available', color: chartTextColor }
+                    },
+                    scales: { y: { title: { text: 'Speed (Mbps)' } } }
+                })
+            });
+
+            const availabilityCtx = document.getElementById('availabilityChart').getContext('2d');
+            new Chart(availabilityCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Jio 5G Availability', 'Airtel 5G Availability'],
+                    datasets: [{
+                        label: '5G Availability (%)',
+                        data: [73.7, 45.7],
+                        backgroundColor: [brandColors.jio, brandColors.airtel],
+                        borderColor: ['#111827'],
+                        borderWidth: 4
+                    }]
+                },
+                options: mergeOptions(chartDefaultOptions, {
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: { label: (c) => `${c.label}: ${c.raw}%` }
+                        },
+                         title: { display: true, text: 'Time users spend on 5G network', color: chartTextColor }
+                    },
+                    scales: { x: { display: false }, y: { display: false } }
+                })
+            });
+
+            const planToggleButtons = {
+                prepaid: document.getElementById('btn-prepaid'),
+                postpaid: document.getElementById('btn-postpaid'),
+                broadband: document.getElementById('btn-broadband'),
+            };
+
+            const planTables = {
+                prepaid: document.getElementById('prepaid-table'),
+                postpaid: document.getElementById('postpaid-table'),
+                broadband: document.getElementById('broadband-table'),
+            };
+
+            function switchPlanView(view) {
+                Object.keys(planToggleButtons).forEach(key => {
+                    planToggleButtons[key].classList.remove('active');
+                    planToggleButtons[key].classList.add('text-gray-300');
+                    planTables[key].classList.add('hidden');
+                });
+                planToggleButtons[view].classList.add('active');
+                planToggleButtons[view].classList.remove('text-gray-300');
+                planTables[view].classList.remove('hidden');
+                planTables[view].parentElement.classList.remove('fade-in');
+                void planTables[view].parentElement.offsetWidth; 
+                planTables[view].parentElement.classList.add('fade-in');
+            }
+
+            planToggleButtons.prepaid.addEventListener('click', () => switchPlanView('prepaid'));
+            planToggleButtons.postpaid.addEventListener('click', () => switchPlanView('postpaid'));
+            planToggleButtons.broadband.addEventListener('click', () => switchPlanView('broadband'));
+            
+            const mobileNav = document.getElementById('mobile-nav');
+            mobileNav.addEventListener('change', (event) => {
+                window.location.hash = event.target.value;
+            });
+
+            const sparkleContainer = document.getElementById('sparkle-container');
+            const sparkleCount = 50;
+            for (let i = 0; i < sparkleCount; i++) {
+                const sparkle = document.createElement('div');
+                sparkle.className = 'sparkle';
+                sparkle.style.left = `${Math.random() * 100}%`;
+                sparkle.style.top = `${Math.random() * 100}%`;
+                sparkle.style.animationDuration = `${2 + Math.random() * 3}s`;
+                sparkle.style.animationDelay = `${Math.random() * 5}s`;
+                sparkleContainer.appendChild(sparkle);
+            }
+
+            const planData = {
+                prepaid: [
+                    { operator: 'Airtel', price: 859, validity: 84, data: '1.5 GB/Day', unlimited5G: true, features: 'Airtel Thanks Benefits' },
+                    { operator: 'Jio', price: 859, validity: 84, data: '2 GB/Day', unlimited5G: true, features: 'JioCinema, JioTV' },
+                    { operator: 'Vi', price: 859, validity: 84, data: '1.5 GB/Day', unlimited5G: false, features: 'Binge All Night, Weekend Rollover' }
+                ],
+                postpaid: [
+                    { operator: 'Airtel', price: 449, data: '50 GB', rollover: 'Up to 200 GB', ott: 'Xstream Play' },
+                    { operator: 'Jio', price: 349, data: '30 GB', rollover: 'No', ott: 'JioCinema, JioTV' },
+                    { operator: 'Vi', price: 451, data: '50 GB', rollover: 'Up to 200 GB', ott: 'Choice of 1 (Hotstar, SonyLIV etc)' }
+                ],
+                broadband: [
+                    { operator: 'Airtel', name: 'Xstream Fiber', price: 799, speed: '100 Mbps', data: 'Unlimited', ott: 'Xstream Play, Perplexity Pro' },
+                    { operator: 'Jio', name: 'JioFiber', price: 699, speed: '100 Mbps', data: 'Unlimited', ott: 'None on base plan' }
+                ]
+            };
+
+            const findPlanBtn = document.getElementById('find-plan-btn');
+            const planPromptInput = document.getElementById('plan-prompt');
+            const geminiResponseContainer = document.getElementById('gemini-response');
+            const loadingIndicator = document.getElementById('plan-finder-loading');
+
+            findPlanBtn.addEventListener('click', async () => {
+                const userPrompt = planPromptInput.value;
+                if (!userPrompt.trim()) {
+                    geminiResponseContainer.innerHTML = `<p class="text-red-400">Please describe what you're looking for in a plan.</p>`;
+                    geminiResponseContainer.classList.remove('hidden');
+                    return;
+                }
+
+                loadingIndicator.classList.remove('hidden');
+                geminiResponseContainer.classList.add('hidden');
+                findPlanBtn.disabled = true;
+                findPlanBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                const systemPrompt = `You are an expert Indian telecom plan advisor. A user wants to find the best mobile or broadband plan for their needs.
+
+                User's request: "${userPrompt}"
+
+                Analyze the user's request and recommend the single best plan from the list below. Provide a clear recommendation, the plan name/details, the price, and a brief justification explaining why it's the best fit based on the user's needs. Format your response in simple HTML with TailwindCSS classes that will look good on a dark background (text-white, text-gray-300, etc.). Use <strong> for emphasis.
+
+                Here is the available plan data in JSON format:
+                ${JSON.stringify(planData)}
+                `;
+
+                try {
+                    let chatHistory = [{ role: "user", parts: [{ text: systemPrompt }] }];
+                    const payload = { contents: chatHistory };
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        geminiResponseContainer.innerHTML = text;
+                    } else {
+                        throw new Error("No valid response from API.");
+                    }
+                } catch (error) {
+                    console.error("Gemini API Error:", error);
+                    geminiResponseContainer.innerHTML = `<p class="text-red-400">Sorry, something went wrong while analyzing the plans. Please try again later.</p>`;
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                    geminiResponseContainer.classList.remove('hidden');
+                    findPlanBtn.disabled = false;
+                    findPlanBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
